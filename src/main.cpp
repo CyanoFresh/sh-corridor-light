@@ -64,8 +64,8 @@ void onMqttConnect(bool) {
     mqttClient.subscribe("device/corridor-light", 0);
 
     // Send current state
-    mqttClient.publish("switch/corridor-light", 0, false, digitalRead(RELAY_PIN) == HIGH ? "false" : "true");
-    mqttClient.publish("switch/corridor-light/motion", 0, false, motionEnabled == 0 ? "false" : "true");
+    mqttClient.publish("switch/corridor-light", 0, false, digitalRead(RELAY_PIN) == HIGH ? "true" : "false");
+    mqttClient.publish("switch/corridor-light/motion", 0, false, motionEnabled == 1 ? "true" : "false");
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
