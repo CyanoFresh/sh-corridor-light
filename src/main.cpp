@@ -109,11 +109,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties,
         payloadBuffer[len] = '\0';
         strncpy(payloadBuffer, payload, len);
 
-        if (strncmp(payloadBuffer, "true", 4) == 0) {
-            motionEnabled = 1;
-        } else {
-            motionEnabled = 0;
-        }
+        motionEnabled = strncmp(payloadBuffer, "true", 4) == 0;
 
         mqttClient.publish("switch/corridor-light/motion", 0, false, payloadBuffer);
 
@@ -130,15 +126,22 @@ void setup() {
     pinMode(RELAY_PIN, OUTPUT);
     pinMode(PIR_PIN, INPUT);
 
-    uint8_t lastState = HIGH;  // off by default
-
     EEPROM.begin(sizeof(motionEnabled) * 2);
-    EEPROM.get(0, lastState);
-    EEPROM.get(1, motionEnabled);
+
+    uint8_t lastState = EEPROM.read(0);
+    motionEnabled = EEPROM.read(1);
 
     digitalWrite(RELAY_PIN, lastState);
     Serial.print("MotionEnabled from memory: ");
+    Serial.println(motionEnabled, DEC);
     Serial.println(motionEnabled);
+
+    if (motionEnabled == 255) {
+        Serial.print("was not set. Loading default");
+        motionEnabled = 1;
+        EEPROM.put(1, motionEnabled);
+        EEPROM.commit();
+    }
 
     wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
     wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWifiDisconnect);
