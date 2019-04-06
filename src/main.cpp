@@ -65,6 +65,7 @@ void onMqttConnect(bool) {
 
     // Send current state
     mqttClient.publish("switch/corridor-light", 0, false, digitalRead(RELAY_PIN) == HIGH ? "false" : "true");
+    mqttClient.publish("switch/corridor-light/motion", 0, false, motionEnabled == 0 ? "false" : "true");
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
@@ -77,15 +78,20 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
     }
 }
 
+void turnOff() {
+    digitalWrite(RELAY_PIN, HIGH);
+    mqttClient.publish("switch/corridor-light", 0, false, "false");
+}
+
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties, size_t len, size_t, size_t) {
-    uint8_t newState = HIGH;
+    uint8_t newState = LOW;
 
     if (strcmp(topic, "switch/corridor-light/toggle") == 0) {
-        if (digitalRead(RELAY_PIN) == HIGH) {
-            newState = LOW;
+        if (digitalRead(RELAY_PIN) == LOW) {
+            newState = HIGH;
         }
 
-        mqttClient.publish("switch/corridor-light", 0, false, newState == HIGH ? "false" : "true");
+        mqttClient.publish("switch/corridor-light", 0, false, newState == LOW ? "false" : "true");
 
         digitalWrite(RELAY_PIN, newState);
 
@@ -96,7 +102,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties,
         strncpy(payloadBuffer, payload, len);
 
         if (strncmp(payloadBuffer, "true", 4) == 0) {
-            newState = LOW;  // Turn on
+            newState = HIGH;  // Turn on
         }
 
         mqttClient.publish("switch/corridor-light", 0, false, payloadBuffer);
@@ -156,26 +162,21 @@ void setup() {
     connectToWifi();
 }
 
-void motionEnded() {
-    digitalWrite(RELAY_PIN, LOW);
-    mqttClient.publish("switch/corridor-light", 0, false, "false");
-}
-
 void loop() {
     if (motionEnabled) {
         int pirState = digitalRead(PIR_PIN);
 
         if (pirState == HIGH) {
             // Turn on if is off
-            if (digitalRead(RELAY_PIN) == LOW) {
-                digitalWrite(RELAY_PIN, HIGH);
+            if (digitalRead(RELAY_PIN) == HIGH) {
+                digitalWrite(RELAY_PIN, LOW);
 
                 mqttClient.publish("switch/corridor-light", 0, false, "true");
             }
 
             // (Re)Start timer for turning off
             motionTimer.detach();
-            motionTimer.once(MOTION_DELAY, motionEnded);
+            motionTimer.once(MOTION_DELAY, turnOff);
         }
     }
 }
