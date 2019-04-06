@@ -79,7 +79,7 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
 }
 
 void turnOff() {
-    digitalWrite(RELAY_PIN, HIGH);
+    digitalWrite(RELAY_PIN, LOW);
     mqttClient.publish("switch/corridor-light", 0, false, "false");
 }
 
@@ -138,12 +138,8 @@ void setup() {
     motionEnabled = EEPROM.read(1);
 
     digitalWrite(RELAY_PIN, lastState);
-    Serial.print("MotionEnabled from memory: ");
-    Serial.println(motionEnabled, DEC);
-    Serial.println(motionEnabled);
 
     if (motionEnabled == 255) {
-        Serial.print("was not set. Loading default");
         motionEnabled = 1;
         EEPROM.put(1, motionEnabled);
         EEPROM.commit();
@@ -168,8 +164,8 @@ void loop() {
 
         if (pirState == HIGH) {
             // Turn on if is off
-            if (digitalRead(RELAY_PIN) == HIGH) {
-                digitalWrite(RELAY_PIN, LOW);
+            if (digitalRead(RELAY_PIN) == LOW) {
+                digitalWrite(RELAY_PIN, HIGH);
 
                 mqttClient.publish("switch/corridor-light", 0, false, "true");
             }
