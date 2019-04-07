@@ -58,14 +58,14 @@ void onMqttConnect(bool) {
     digitalWrite(LED_BUILTIN, LOW);
 
     // Subscribe to topics:
-    mqttClient.subscribe("switch/corridor-light/set", 0);
-    mqttClient.subscribe("switch/corridor-light/toggle", 0);
-    mqttClient.subscribe("switch/corridor-light/motion/set", 0);
+    mqttClient.subscribe("motion-switch/corridor-light/set", 0);
+    mqttClient.subscribe("motion-switch/corridor-light/toggle", 0);
+    mqttClient.subscribe("motion-switch/corridor-light/motion/set", 0);
     mqttClient.subscribe("device/corridor-light", 0);
 
     // Send current state
-    mqttClient.publish("switch/corridor-light", 0, false, digitalRead(RELAY_PIN) == HIGH ? "true" : "false");
-    mqttClient.publish("switch/corridor-light/motion", 0, false, motionEnabled == 1 ? "true" : "false");
+    mqttClient.publish("motion-switch/corridor-light", 0, false, digitalRead(RELAY_PIN) == HIGH ? "true" : "false");
+    mqttClient.publish("motion-switch/corridor-light/motion", 0, false, motionEnabled == 1 ? "true" : "false");
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
@@ -80,24 +80,24 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
 
 void turnOff() {
     digitalWrite(RELAY_PIN, LOW);
-    mqttClient.publish("switch/corridor-light", 0, false, "false");
+    mqttClient.publish("motion-switch/corridor-light", 0, false, "false");
 }
 
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties, size_t len, size_t, size_t) {
     uint8_t newState = LOW;
 
-    if (strcmp(topic, "switch/corridor-light/toggle") == 0) {
+    if (strcmp(topic, "motion-switch/corridor-light/toggle") == 0) {
         if (digitalRead(RELAY_PIN) == LOW) {
             newState = HIGH;
         }
 
-        mqttClient.publish("switch/corridor-light", 0, false, newState == LOW ? "false" : "true");
+        mqttClient.publish("motion-switch/corridor-light", 0, false, newState == LOW ? "false" : "true");
 
         digitalWrite(RELAY_PIN, newState);
 
         EEPROM.put(0, newState);
         EEPROM.commit();
-    } else if (strcmp(topic, "switch/corridor-light/set") == 0) {
+    } else if (strcmp(topic, "motion-switch/corridor-light/set") == 0) {
         payloadBuffer[len] = '\0';
         strncpy(payloadBuffer, payload, len);
 
@@ -105,7 +105,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties,
             newState = HIGH;  // Turn on
         }
 
-        mqttClient.publish("switch/corridor-light", 0, false, payloadBuffer);
+        mqttClient.publish("motion-switch/corridor-light", 0, false, payloadBuffer);
 
         digitalWrite(RELAY_PIN, newState);
 
@@ -117,7 +117,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties,
 
         motionEnabled = strncmp(payloadBuffer, "true", 4) == 0;
 
-        mqttClient.publish("switch/corridor-light/motion", 0, false, payloadBuffer);
+        mqttClient.publish("motion-switch/corridor-light/motion", 0, false, payloadBuffer);
 
         EEPROM.put(1, motionEnabled);
         EEPROM.commit();
@@ -167,7 +167,7 @@ void loop() {
             if (digitalRead(RELAY_PIN) == LOW) {
                 digitalWrite(RELAY_PIN, HIGH);
 
-                mqttClient.publish("switch/corridor-light", 0, false, "true");
+                mqttClient.publish("motion-switch/corridor-light", 0, false, "true");
             }
 
             // (Re)Start timer for turning off
