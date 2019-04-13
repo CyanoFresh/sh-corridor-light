@@ -3,7 +3,7 @@
 #include <Ticker.h>
 #include <EEPROM.h>
 
-#define WIFI_SSID "Solomaha"
+#define WIFI_SSID "Solomaha_2"
 #define WIFI_PASSWORD "solomakha21"
 
 #define MQTT_HOST IPAddress(192, 168, 1, 230)
