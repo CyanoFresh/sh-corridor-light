@@ -13,6 +13,10 @@
 
 #define PIR_PIN D1
 #define RELAY_PIN D2
+#define DOOR_PIN D3
+#define ARM_BUTTON_PIN D4
+#define BUZZER_PIN D5
+#define RED_LIGHT_PIN D6
 #define MOTION_DELAY 15
 
 AsyncMqttClient mqttClient;
@@ -24,8 +28,9 @@ Ticker wifiReconnectTimer;
 
 Ticker motionTimer;
 
+uint8_t armed = false;
 uint8_t motionEnabled;
-char payloadBuffer[6];  // enough for json boolean
+uint8_t sendDoorStateOnConnect = 1;
 
 void connectToWifi() {
     Serial.println("Connecting to Wi-Fi...");
@@ -66,6 +71,11 @@ void onMqttConnect(bool) {
     // Send current state
     mqttClient.publish("motion-switch/corridor-light", 0, false, digitalRead(RELAY_PIN) == HIGH ? "true" : "false");
     mqttClient.publish("motion-switch/corridor-light/motion", 0, false, motionEnabled == 1 ? "true" : "false");
+
+    if (sendDoorStateOnConnect) {
+        mqttClient.publish("variable/door", 0, false, digitalRead(DOOR_PIN) == HIGH ? "\"open\"" : "\"closed\"");
+        sendDoorStateOnConnect = 0;
+    }
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
@@ -82,6 +92,18 @@ void turnOff() {
     digitalWrite(RELAY_PIN, LOW);
     mqttClient.publish("motion-switch/corridor-light", 0, false, "false");
 }
+
+void alarmOn() {
+    digitalWrite(RED_LIGHT_PIN, 1);
+    tone(BUZZER_PIN, 1000);
+}
+
+void alarmOff() {
+    digitalWrite(RED_LIGHT_PIN, 0);
+    noTone(BUZZER_PIN);
+}
+
+char payloadBuffer[6];  // enough for json boolean
 
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties, size_t len, size_t, size_t) {
     uint8_t newState = LOW;
@@ -119,7 +141,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties,
 
         mqttClient.publish("motion-switch/corridor-light/motion", 0, false, payloadBuffer);
 
-        EEPROM.put(1, motionEnabled);
+        EEPROM.put(1, motionEnabled);   // motionEnabled state address
         EEPROM.commit();
     }
 }
@@ -130,7 +152,12 @@ void setup() {
     Serial.println();
 
     pinMode(RELAY_PIN, OUTPUT);
+    pinMode(RED_LIGHT_PIN, OUTPUT);
+    pinMode(BUZZER_PIN, OUTPUT);
+
     pinMode(PIR_PIN, INPUT);
+    pinMode(DOOR_PIN, INPUT_PULLUP);
+    pinMode(ARM_BUTTON_PIN, INPUT_PULLUP);
 
     EEPROM.begin(sizeof(motionEnabled) * 2);
 
@@ -158,6 +185,9 @@ void setup() {
     connectToWifi();
 }
 
+int lastDoorState = 1;
+int lastArmBtnState = HIGH;
+
 void loop() {
     if (motionEnabled) {
         int pirState = digitalRead(PIR_PIN);
@@ -171,8 +201,49 @@ void loop() {
             }
 
             // (Re)Start timer for turning off
-            motionTimer.detach();
             motionTimer.once(MOTION_DELAY, turnOff);
         }
+    }
+
+    int doorState = digitalRead(DOOR_PIN);
+
+    if (doorState != lastDoorState) {
+        if (doorState == HIGH) {
+            Serial.println("Door opened");
+
+            if (armed) {
+                alarmOn();
+            }
+        } else {
+            Serial.println("Door closed");
+        }
+
+        if (mqttClient.connected()) {
+            mqttClient.publish("variable/door", 0, false, doorState == HIGH ? "\"open\"" : "\"closed\"");
+            sendDoorStateOnConnect = 0;
+        } else {
+            sendDoorStateOnConnect = 1;
+        }
+
+        lastDoorState = doorState;
+    }
+
+    int armBtnState = digitalRead(ARM_BUTTON_PIN);
+
+    if (armBtnState != lastArmBtnState) {
+        if (armBtnState == LOW) {
+            Serial.println("ARM button pushed");
+
+            armed = !armed;
+
+            if (armed) {
+                Serial.println(" - ARMED - ");
+            } else {
+                Serial.println(" - DISARMED - ");
+                alarmOff();
+            }
+        }
+
+        lastArmBtnState = armBtnState;
     }
 }
