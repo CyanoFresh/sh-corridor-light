@@ -13,7 +13,7 @@
 
 #define PIR_PIN D1
 #define RELAY_PIN D2
-#define DOOR_PIN D3
+#define DOOR_PIN D7
 #define ARM_BUTTON_PIN D4
 #define BUZZER_PIN D5
 #define RED_LIGHT_PIN D6
@@ -99,11 +99,13 @@ void turnOff() {
 }
 
 void alarmOn() {
+    Serial.println("Alarm started");
     digitalWrite(RED_LIGHT_PIN, HIGH);
     tone(BUZZER_PIN, 1000);
 }
 
 void alarmOff() {
+    Serial.println("Alarm ended");
     digitalWrite(RED_LIGHT_PIN, LOW);
     noTone(BUZZER_PIN);
 }
@@ -222,7 +224,7 @@ void loop() {
     int doorState = digitalRead(DOOR_PIN);
 
     if (doorState != lastDoorState) {
-        if (doorState == LOW) {
+        if (doorState == HIGH) {
             Serial.println("Door opened");
 
             if (armed) {
