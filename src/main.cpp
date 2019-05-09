@@ -20,6 +20,7 @@
 
 #define MOTION_DELAY 15
 #define ALARM_DELAY 3
+#define STATUS_INTERVAL 0.7
 
 AsyncMqttClient mqttClient;
 Ticker mqttReconnectTimer;
@@ -31,8 +32,9 @@ Ticker wifiReconnectTimer;
 Ticker motionTimer;
 
 Ticker alarmTimer;
+Ticker statusTimer;
 
-bool armed;
+uint8_t armed;
 bool armAfterDoorClose = false;
 bool sendDoorStateOnConnect = true;
 uint8_t motionEnabled;
@@ -98,19 +100,31 @@ void turnOff() {
     mqttClient.publish("motion-switch/corridor-light", 0, false, "false");
 }
 
+void statusInterval() {
+    if (armAfterDoorClose || alarmTimer.active()) {
+        if (digitalRead(RED_LIGHT_PIN) == LOW) {
+            digitalWrite(RED_LIGHT_PIN, HIGH);
+        } else {
+            digitalWrite(RED_LIGHT_PIN, LOW);
+        }
+    }
+}
+
 void alarmOn() {
-    Serial.println("Alarm started");
     digitalWrite(RED_LIGHT_PIN, HIGH);
     tone(BUZZER_PIN, 1000);
+
+    Serial.println("Alarm started");
 }
 
 void alarmOff() {
-    Serial.println("Alarm ended");
     digitalWrite(RED_LIGHT_PIN, LOW);
     noTone(BUZZER_PIN);
+
+    Serial.println("Alarm ended");
 }
 
-char payloadBuffer[6];  // enough for json boolean
+char payloadBuffer[6];  // 6 chars are enough for json boolean
 
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties, size_t len, size_t, size_t) {
     uint8_t newState = LOW;
@@ -182,10 +196,16 @@ void setup() {
         EEPROM.commit();
     }
 
+    if (armed == 255) {
+        armed = false;
+        EEPROM.put(2, armed);
+        EEPROM.commit();
+    }
+
     if (armed) {
-        Serial.println(" - ARMED - ");
+        Serial.println(" - ARMED (from memory) - ");
     } else {
-        Serial.println(" - NOT ARMED - ");
+        Serial.println(" - NOT ARMED (from memory) - ");
     }
 
     wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
@@ -201,12 +221,12 @@ void setup() {
     connectToWifi();
 }
 
-int lastDoorState = HIGH;
-int lastArmBtnState = HIGH;
+uint8_t lastDoorState = HIGH;
+uint8_t lastArmBtnState = HIGH;
 
 void loop() {
     if (motionEnabled) {
-        int pirState = digitalRead(PIR_PIN);
+        uint8_t pirState = digitalRead(PIR_PIN);
 
         if (pirState == HIGH) {
             // Turn on if is off
@@ -221,7 +241,7 @@ void loop() {
         }
     }
 
-    int doorState = digitalRead(DOOR_PIN);
+    uint8_t doorState = digitalRead(DOOR_PIN);
 
     if (doorState != lastDoorState) {
         if (doorState == HIGH) {
@@ -229,12 +249,19 @@ void loop() {
 
             if (armed) {
                 alarmTimer.once(ALARM_DELAY, alarmOn);
+                statusTimer.attach(STATUS_INTERVAL, statusInterval);
+
+                Serial.println("alarm timer started");
             }
         } else {
             Serial.println("Door closed");
 
             if (armAfterDoorClose) {
                 armed = true;
+
+                statusTimer.detach();
+
+                Serial.println(" - ARMED - ");
             }
         }
 
@@ -248,20 +275,28 @@ void loop() {
         lastDoorState = doorState;
     }
 
-    int armBtnState = digitalRead(ARM_BUTTON_PIN);
+    uint8_t armBtnState = digitalRead(ARM_BUTTON_PIN);
 
     if (armBtnState != lastArmBtnState) {
         if (armBtnState == LOW) {
-            if (armed) {
+            if (armed || armAfterDoorClose) {
                 Serial.println(" - DISARMED - ");
 
                 armed = false;
+                armAfterDoorClose = false;
+
                 alarmOff();
+
+                alarmTimer.detach();
+                statusTimer.detach();
 
                 EEPROM.put(2, false);
             } else {
                 Serial.println(" - ARMED (after door close) - ");
+
                 armAfterDoorClose = true;
+
+                statusTimer.attach(STATUS_INTERVAL, statusInterval);
 
                 EEPROM.put(2, true);
             }
