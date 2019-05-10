@@ -242,8 +242,10 @@ void loop() {
                 mqttClient.publish("motion-switch/corridor-light", 0, false, "true");
             }
 
-            // (Re)Start timer for turning off
+            // (Re)Start timer to turn off
             motionTimer.once(MOTION_DELAY, turnOff);
+
+            Serial.println("Motion detected");
         }
     }
 
