@@ -78,7 +78,7 @@ void onMqttConnect(bool) {
 
     // Send current state
     mqttClient.publish("motion-switch/corridor-light", 0, false, digitalRead(RELAY_PIN) == HIGH ? "true" : "false");
-    mqttClient.publish("motion-switch/corridor-light/motion", 0, false, motionEnabled == 1 ? "true" : "false");
+    mqttClient.publish("motion-switch/corridor-light/motion", 0, false, motionEnabled ? "true" : "false");
 
     if (sendDoorStateOnConnect) {
         mqttClient.publish("variable/door", 0, false, digitalRead(DOOR_PIN) == HIGH ? "\"open\"" : "\"closed\"");
@@ -300,6 +300,8 @@ void loop() {
                 EEPROM.put(2, false);
             } else if (alarming) {
                 alarmOff();
+                statusTimer.detach();
+                digitalWrite(RED_LIGHT_PIN, LOW);
 
                 EEPROM.put(2, false);
             } else {
