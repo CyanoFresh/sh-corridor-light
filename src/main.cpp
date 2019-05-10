@@ -19,7 +19,7 @@
 #define RED_LIGHT_PIN D6
 
 #define MOTION_DELAY 15
-#define ALARM_DELAY 3
+#define ALARM_DELAY 5
 #define STATUS_INTERVAL 0.7
 
 AsyncMqttClient mqttClient;
@@ -35,8 +35,9 @@ Ticker alarmTimer;
 Ticker statusTimer;
 
 uint8_t armed;
-bool armAfterDoorClose = false;
-bool sendDoorStateOnConnect = true;
+uint8_t alarming = false;
+uint8_t armAfterDoorClose = false;
+uint8_t sendDoorStateOnConnect = true;
 uint8_t motionEnabled;
 
 void connectToWifi() {
@@ -111,6 +112,9 @@ void statusInterval() {
 }
 
 void alarmOn() {
+    alarming = true;
+    armed = false;
+
     digitalWrite(RED_LIGHT_PIN, HIGH);
     tone(BUZZER_PIN, 1000);
 
@@ -118,6 +122,8 @@ void alarmOn() {
 }
 
 void alarmOff() {
+    alarming = false;
+
     digitalWrite(RED_LIGHT_PIN, LOW);
     noTone(BUZZER_PIN);
 
@@ -251,15 +257,17 @@ void loop() {
                 alarmTimer.once(ALARM_DELAY, alarmOn);
                 statusTimer.attach(STATUS_INTERVAL, statusInterval);
 
-                Serial.println("alarm timer started");
+                Serial.println("Waiting for disarm...");
             }
         } else {
             Serial.println("Door closed");
 
             if (armAfterDoorClose) {
+                armAfterDoorClose = false;
                 armed = true;
 
                 statusTimer.detach();
+                digitalWrite(RED_LIGHT_PIN, LOW);
 
                 Serial.println(" - ARMED - ");
             }
@@ -278,17 +286,20 @@ void loop() {
     uint8_t armBtnState = digitalRead(ARM_BUTTON_PIN);
 
     if (armBtnState != lastArmBtnState) {
-        if (armBtnState == LOW) {
+        if (armBtnState == LOW) {   // button pressed
             if (armed || armAfterDoorClose) {
                 Serial.println(" - DISARMED - ");
 
                 armed = false;
                 armAfterDoorClose = false;
 
-                alarmOff();
-
                 alarmTimer.detach();
                 statusTimer.detach();
+                digitalWrite(RED_LIGHT_PIN, LOW);
+
+                EEPROM.put(2, false);
+            } else if (alarming) {
+                alarmOff();
 
                 EEPROM.put(2, false);
             } else {
