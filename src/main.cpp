@@ -41,34 +41,31 @@ uint8_t sendDoorStateOnConnect = true;
 uint8_t motionEnabled;
 
 void connectToWifi() {
-    Serial.println("Connecting to Wi-Fi...");
+    Serial.println(F("Connecting to Wi-Fi..."));
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 }
 
 void connectToMqtt() {
-    Serial.println("Connecting to MQTT...");
+    Serial.println(F("Connecting to MQTT..."));
     mqttClient.connect();
 }
 
 void onWifiConnect(const WiFiEventStationModeGotIP &event) {
-    Serial.println("Connected to Wi-Fi.");
-    digitalWrite(LED_BUILTIN, LOW);
-
     connectToMqtt();
 }
 
 void onWifiDisconnect(const WiFiEventStationModeDisconnected &event) {
-    Serial.print("Disconnected from Wi-Fi: ");
+    Serial.print(F("Disconnected from Wi-Fi: "));
     Serial.println(event.reason);
-    digitalWrite(LED_BUILTIN, HIGH);
+    digitalWrite(LED_BUILTIN, LOW);
 
     mqttReconnectTimer.detach();
     wifiReconnectTimer.once(2, connectToWifi);
 }
 
 void onMqttConnect(bool) {
-    Serial.println("Connected to MQTT.");
-    digitalWrite(LED_BUILTIN, LOW);
+    Serial.println(F("Connected to MQTT."));
+    digitalWrite(LED_BUILTIN, HIGH);
 
     // Subscribe to topics:
     mqttClient.subscribe("motion-switch/corridor-light/set", 0);
@@ -87,9 +84,10 @@ void onMqttConnect(bool) {
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-    Serial.print("Disconnected from MQTT. Reason: ");
+    Serial.print(F("Disconnected from MQTT. Reason: "));
     Serial.println((int) reason);
-    digitalWrite(LED_BUILTIN, HIGH);
+
+    digitalWrite(LED_BUILTIN, LOW);
 
     if (WiFi.isConnected()) {
         mqttReconnectTimer.once(2, connectToMqtt);
@@ -160,7 +158,14 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties,
 
         EEPROM.put(0, newState);
         EEPROM.commit();
-    } else {
+    } else if (strcmp(topic, "motion-switch/corridor-light/motion/toggle") == 0) {
+        motionEnabled = !motionEnabled;
+
+        mqttClient.publish("motion-switch/corridor-light/motion", 0, false, motionEnabled ? "true" : "false");
+
+        EEPROM.put(1, motionEnabled);
+        EEPROM.commit();
+    } else if (strcmp(topic, "motion-switch/corridor-light/motion/set") == 0) {
         payloadBuffer[len] = '\0';
         strncpy(payloadBuffer, payload, len);
 
@@ -168,8 +173,10 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties,
 
         mqttClient.publish("motion-switch/corridor-light/motion", 0, false, payloadBuffer);
 
-        EEPROM.put(1, motionEnabled);   // motionEnabled state address
+        EEPROM.put(1, motionEnabled);
         EEPROM.commit();
+    } else {
+        Serial.println("ERROR! Unknown message");
     }
 }
 
@@ -178,6 +185,7 @@ void setup() {
     Serial.println();
     Serial.println();
 
+    pinMode(LED_BUILTIN, OUTPUT);
     pinMode(RELAY_PIN, OUTPUT);
     pinMode(RED_LIGHT_PIN, OUTPUT);
     pinMode(BUZZER_PIN, OUTPUT);
@@ -185,6 +193,8 @@ void setup() {
     pinMode(PIR_PIN, INPUT);
     pinMode(DOOR_PIN, INPUT_PULLUP);
     pinMode(ARM_BUTTON_PIN, INPUT_PULLUP);
+
+    digitalWrite(LED_BUILTIN, LOW);
 
     bool lastRelayState;
 
