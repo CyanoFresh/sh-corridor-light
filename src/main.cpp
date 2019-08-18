@@ -71,6 +71,7 @@ void onMqttConnect(bool) {
     mqttClient.subscribe("motion-switch/corridor-light/set", 0);
     mqttClient.subscribe("motion-switch/corridor-light/toggle", 0);
     mqttClient.subscribe("motion-switch/corridor-light/motion/set", 0);
+    mqttClient.subscribe("motion-switch/corridor-light/motion/toggle", 0);
     mqttClient.subscribe("device/corridor-light", 0);
 
     // Send current state
@@ -254,8 +255,6 @@ void loop() {
 
             // (Re)Start timer to turn off
             motionTimer.once(MOTION_DELAY, turnOff);
-
-            Serial.println("Motion detected");
         }
     }
 
