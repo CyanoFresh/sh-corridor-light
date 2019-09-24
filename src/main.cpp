@@ -286,7 +286,7 @@ void loop() {
         }
 
         if (mqttClient.connected()) {
-            mqttClient.publish("variable/door", 0, false, doorState == HIGH ? "\"open\"" : "\"closed\"");
+            mqttClient.publish("variable/door", 0, false, doorState == HIGH ? "\"0\"" : "\"1\"");
             sendDoorStateOnConnect = false;
         } else {
             sendDoorStateOnConnect = true;
