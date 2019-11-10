@@ -45,6 +45,7 @@ void onMqttConnect(bool) {
     // Subscribe to topics:
     mqttClient.subscribe("motion-switch/corridor-light/set", 0);
     mqttClient.subscribe("motion-switch/corridor-light/toggle", 0);
+    mqttClient.subscribe("motion-switch/corridor-light/motion/toggle", 0);
     mqttClient.subscribe("motion-switch/corridor-light/motion/set", 0);
 
     // Send current state
