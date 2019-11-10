@@ -76,8 +76,6 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties,
     if (strcmp(topic, "motion-switch/corridor-light/toggle") == 0) {
         if (digitalRead(config::RELAY_PIN) == LOW) {
             newState = HIGH;
-        } else if (!motionEnabled) {    // motion is disabled and light is turning off
-            motionTimer.detach();
         }
 
         mqttClient.publish("motion-switch/corridor-light", 0, false, newState == LOW ? "false" : "true");
@@ -105,15 +103,21 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties,
 
         mqttClient.publish("motion-switch/corridor-light/motion", 0, false, motionEnabled ? "true" : "false");
 
+        Serial.print("Motion toggled to ");
+        Serial.println(motionEnabled);
+
         EEPROM.put(1, motionEnabled);
         EEPROM.commit();
     } else if (strcmp(topic, "motion-switch/corridor-light/motion/set") == 0) {
         payloadBuffer[len] = '\0';
         strncpy(payloadBuffer, payload, len);
 
+        mqttClient.publish("motion-switch/corridor-light/motion", 0, false, payloadBuffer);
+
         motionEnabled = strncmp(payloadBuffer, "true", 4) == 0;
 
-        mqttClient.publish("motion-switch/corridor-light/motion", 0, false, payloadBuffer);
+        Serial.print("Motion set to ");
+        Serial.println(motionEnabled);
 
         EEPROM.put(1, motionEnabled);
         EEPROM.commit();
@@ -134,7 +138,7 @@ void setup() {
 
     bool lastRelayState;
 
-    EEPROM.begin(sizeof(bool) * 3); // store 3 booleans
+    EEPROM.begin(sizeof(bool) * 2); // store 2 booleans
 
     lastRelayState = EEPROM.read(0);
     motionEnabled = EEPROM.read(1);
@@ -146,6 +150,9 @@ void setup() {
         EEPROM.put(1, motionEnabled);
         EEPROM.commit();
     }
+
+    Serial.print("Loaded motion from memory");
+    Serial.println(motionEnabled);
 
     wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
     wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWifiDisconnect);
@@ -175,7 +182,7 @@ void loop() {
             // (Re)Start timer to turn off
             motionTimer.once(config::MOTION_DELAY, turnOff);
 
-            Serial.println("Motion detected");
+            Serial.println("motion");
         }
     }
 }
